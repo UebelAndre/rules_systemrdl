@@ -2,6 +2,8 @@
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("@rules_verilog//verilog:verilog_info.bzl", "VerilogInfo")
+load("@rules_verilog//verilog:verilog_library.bzl", "verilog_library")
+load("@rules_vhdl//vhdl:vhdl_library.bzl", "vhdl_library")
 load("//systemrdl:verilog_system_rdl_library.bzl", "verilog_system_rdl_library")
 
 def _verilog_provider_test_impl(ctx):
@@ -55,6 +57,29 @@ verilog_system_rdl_library_explicit_library_test = analysistest.make(
     _verilog_explicit_library_test_impl,
 )
 
+def _verilog_transitive_vhdl_deps_test_impl(ctx):
+    env = analysistest.begin(ctx)
+
+    target = analysistest.target_under_test(env)
+    verilog = target[VerilogInfo]
+
+    # `VhdlInfo` doesn't carry a label; identify each entry via the srcs it exposes.
+    vhdl_src_basenames = []
+    for entry in verilog.vhdl_deps.to_list():
+        vhdl_src_basenames.extend([f.basename for f in entry.srcs.to_list()])
+
+    asserts.true(
+        env,
+        "leaf_vhdl.vhd" in vhdl_src_basenames,
+        "expected transitive `vhdl_deps` to include the leaf VHDL library src, found `{}`".format(vhdl_src_basenames),
+    )
+
+    return analysistest.end(env)
+
+verilog_system_rdl_library_transitive_vhdl_deps_test = analysistest.make(
+    _verilog_transitive_vhdl_deps_test_impl,
+)
+
 def verilog_system_rdl_library_test_suite(*, name, **kwargs):
     """Entry point for `verilog_system_rdl_library` analysis tests.
 
@@ -83,11 +108,36 @@ def verilog_system_rdl_library_test_suite(*, name, **kwargs):
         target_under_test = ":atxmega_spi_lib_explicit",
     )
 
+    # A verilog_system_rdl_library dep chain that transitively pulls in a
+    # VHDL library via `verilog_library.vhdl_deps` — the test asserts the
+    # rule re-exposes that VHDL entry on its own `VerilogInfo.vhdl_deps`.
+    vhdl_library(
+        name = "leaf_vhdl",
+        srcs = ["leaf_vhdl.vhd"],
+    )
+
+    verilog_library(
+        name = "mid_verilog_with_vhdl_dep",
+        vhdl_deps = [":leaf_vhdl"],
+    )
+
+    verilog_system_rdl_library(
+        name = "atxmega_spi_lib_with_transitive_vhdl_dep",
+        lib = "//systemrdl/private/tests/simple:atxmega_spi",
+        deps = [":mid_verilog_with_vhdl_dep"],
+    )
+
+    verilog_system_rdl_library_transitive_vhdl_deps_test(
+        name = "verilog_system_rdl_library_transitive_vhdl_deps_test",
+        target_under_test = ":atxmega_spi_lib_with_transitive_vhdl_dep",
+    )
+
     native.test_suite(
         name = name,
         tests = [
             ":verilog_system_rdl_library_provider_test",
             ":verilog_system_rdl_library_explicit_library_test",
+            ":verilog_system_rdl_library_transitive_vhdl_deps_test",
         ],
         **kwargs
     )

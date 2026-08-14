@@ -82,6 +82,11 @@ def _vhdl_system_rdl_library_impl(ctx):
                 order = "postorder",
                 transitive = [d.deps for d in dep_infos],
             ),
+            verilog_deps = depset(
+                [],
+                order = "postorder",
+                transitive = [d.verilog_deps for d in dep_infos],
+            ),
         ),
     ]
 

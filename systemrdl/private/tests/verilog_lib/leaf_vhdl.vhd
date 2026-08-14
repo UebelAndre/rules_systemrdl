@@ -1,0 +1,2 @@
+-- Empty placeholder VHDL source referenced only by analysis tests; never
+-- compiled or simulated.
