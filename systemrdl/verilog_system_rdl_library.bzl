@@ -82,6 +82,11 @@ def _verilog_system_rdl_library_impl(ctx):
                 transitive = [d.deps for d in dep_infos],
             ),
             library = ctx.attr.library if ctx.attr.library else ctx.attr.lib.label.name,
+            vhdl_deps = depset(
+                [],
+                order = "postorder",
+                transitive = [d.vhdl_deps for d in dep_infos],
+            ),
         ),
     ]
 
